@@ -1,0 +1,41 @@
+name: Deploy n8n Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Позволяет запускать деплой вручную из вкладки Actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Чтение кода из репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Python и Ansible
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Установка зависимостей (Ansible и sshpass)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          pip install ansible
+
+      - name: Запуск Ansible Playbook
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          N8N_HOSTNAME: ${{ secrets.N8N_HOSTNAME }}
+          SSL_EMAIL: ${{ secrets.SSL_EMAIL }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          GENERIC_TIMEZONE: ${{ secrets.GENERIC_TIMEZONE }}
+          N8N_ENCRYPTION_KEY: ${{ secrets.N8N_ENCRYPTION_KEY }}
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.ini setup-server.yml

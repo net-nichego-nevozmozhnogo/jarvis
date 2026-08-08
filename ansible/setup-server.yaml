@@ -1,0 +1,60 @@
+---
+- name: Развертывание n8n инфраструктуры
+  hosts: n8n_servers
+  gather_facts: yes
+  vars:
+    app_dir: /opt/n8n
+
+  tasks:
+    - name: Обновление apt-кэша и установка базовых утилит
+      ansible.builtin.apt:
+        update_cache: yes
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - python3
+        state: present
+
+    - name: Установка Docker и Docker Compose
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Убедиться, что Docker запущен и добавлен в автозагрузку
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Создание рабочей директории на сервере
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Копирование docker-compose.yml из репозитория
+      ansible.builtin.copy:
+        src: ../n8n/docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Генерация .env файла из переменных окружения
+      ansible.builtin.copy:
+        dest: "{{ app_dir }}/.env"
+        mode: '0600'
+        content: |
+          N8N_HOSTNAME={{ lookup('env', 'N8N_HOSTNAME') }}
+          SSL_EMAIL={{ lookup('env', 'SSL_EMAIL') }}
+          POSTGRES_USER={{ lookup('env', 'POSTGRES_USER') }}
+          POSTGRES_PASSWORD={{ lookup('env', 'POSTGRES_PASSWORD') }}
+          POSTGRES_DB={{ lookup('env', 'POSTGRES_DB') }}
+          GENERIC_TIMEZONE={{ lookup('env', 'GENERIC_TIMEZONE') }}
+          N8N_ENCRYPTION_KEY={{ lookup('env', 'N8N_ENCRYPTION_KEY') }}
+
+    - name: Перезапуск Docker Compose стека
+      ansible.builtin.command:
+        cmd: docker compose up -d --remove-orphans
+        chdir: "{{ app_dir }}"
